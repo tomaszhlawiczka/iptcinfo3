@@ -141,7 +141,7 @@ def file_is_jpeg(fh):
     ered = False
     try:
         (ff, soi) = fh.read(2)
-        if not (ff == 0xff and soi == 0xd8):
+        if not (ff == 0xff and soi == SOI):
             ered = False
         else:
             # now check for APP0 marker. I'll assume that anything with a
@@ -217,6 +217,9 @@ def jpeg_parts_by_marker(fh):
     __, soi = fh.read(2)  # skip FFD8 SOI
     assert soi == SOI
 
+    chunk = b''
+    marker = 0
+
     while True:
         test = fh.read(1)
         if not test:  # EOF
@@ -224,19 +227,27 @@ def jpeg_parts_by_marker(fh):
             break
 
         if ord(test) != 0xff:
-            print('continue', test)
+            # print('continue', test)
+            # we found data beyond the supposed chunk size, append it to the last chunk
+            chunk += test
             continue
 
+        prev_marker = marker
         marker = ord(fh.read(1))
-
         if marker == SOS or marker == EOI:
+            print('SOS or EOI found, bye')
             break
 
         size_bits = fh.read(2)
         size = unpack('!H', size_bits)[0]
+
+        # yield previous results
+        yield '%02X' % prev_marker, size, len(chunk), 'chunk'
+
         chunk = fh.read(size)
 
-        yield '%02X' % marker, size, 'chunk'
+    if chunk:
+        yield '%02X' % marker, size, len(chunk), 'chunk'
 
 
 def jpeg_skip_variable(fh, save_read=False):
@@ -249,6 +260,7 @@ def jpeg_skip_variable(fh, save_read=False):
     if length == 0:
         return None
 
+    temp = None
     # Skip remaining bytes
     if save_read or debugMode:
         try:
@@ -270,7 +282,7 @@ def jpeg_skip_variable(fh, save_read=False):
 def jpeg_debug_scan(filename):  # pragma: no cover
     """Also very helpful when debugging."""
     assert isinstance(filename, str) and os.path.isfile(filename)
-    with open(filename, 'wb') as fh:
+    with open(filename, 'rb') as fh:
 
         # Skip past start of file marker
         (ff, soi) = fh.read(2)
@@ -735,13 +747,13 @@ class IPTCInfo:
         fh.seek(0, 0)
         # Skip past start of file marker
         (ff, soi) = fh.read(2)
-        if not (ord3(ff) == 0xff and ord3(soi) == 0xd8):
+        if not (ord3(ff) == 0xff and ord3(soi) == SOI):
             self.error = "jpegCollectFileParts: invalid start of file"
             logger.error(self.error)
             return None
 
         # Begin building start of file
-        start.append(pack('BB', 0xff, 0xd8))  # pack('BB', ff, soi)
+        start.append(pack('BB', 0xff, SOI))
 
         # Get first marker in file. This will be APP0 for JFIF or APP1 for EXIF
         marker = jpeg_next_marker(fh)
