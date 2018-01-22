@@ -5,6 +5,7 @@ import pytest
 
 from iptcinfo3 import (
     EOFException,
+    jpeg_parts_by_marker,
     hex_dump,
     file_is_jpeg,
     IPTCData,
@@ -23,6 +24,12 @@ def test_EOFException_message():
 def test_hex_dump():
     out = hex_dump(b'ABCDEF')
     assert out.strip() == '41 42 43 44 45 46                                     | ABCDEF'
+
+
+def test_jpeg_parts_by_marker():
+    with open('fixtures/Lenna.jpg', 'rb') as fh:
+        for x in jpeg_parts_by_marker(fh):
+            print(x)
 
 
 def test_IPTCData():

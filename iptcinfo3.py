@@ -200,6 +200,21 @@ def jpeg_next_marker(fh):
     return byte
 
 
+def jpeg_parts_by_marker(fh):
+    """
+    Iterate over each part of a JPEG file by marker
+
+    Returns (marker: int, chunk: binary)
+    """
+    fh.seek(0, 0)
+    while True:
+        block = fh.read(8192)
+        if not block:
+            break
+
+        yield len(block.split(b'\xff'))
+
+
 def jpeg_skip_variable(fh, rSave=None):
     """Skips variable-length section of Jpeg block. Should always be
     called between calls to JpegNextMarker to ensure JpegNextMarker is
@@ -728,7 +743,7 @@ class IPTCInfo:
             start.append(b'JFIF')  # format
             start.append(pack("BB", 1, 2))  # call it version 1.2 (current JFIF)
             start.append(pack('8B', 0, 0, 0, 0, 0, 0, 0, 0))  # zero everything else
-        print('START', discard_app_parts, hex_dump(start))
+        # print('START', discard_app_parts, hex_dump(start))
 
         # Now scan through all markers in file until we hit image data or
         # IPTC stuff.
@@ -741,7 +756,7 @@ class IPTCInfo:
                 return None
             # Check for end of image
             elif ord3(marker) == 0xd9:
-                logger.debug("JpegCollectFileParts: saw end of image marker")
+                logger.debug("JpegCollectFileParts: saw EOI (end of image) marker")
                 end.append(pack("BB", 0xff, ord3(marker)))
                 break
             # Check for start of compressed data
@@ -763,7 +778,7 @@ class IPTCInfo:
                 # Skip all application markers, including Adobe parts
                 adobeParts = b''
             elif ord3(marker) == 0xed:
-                # Collect the adobe stuff from part 13
+                # Collect the adobe stuff from part 13 (FF ED)
                 adobeParts = self.collectAdobeParts(partdata)
                 break
             else:
