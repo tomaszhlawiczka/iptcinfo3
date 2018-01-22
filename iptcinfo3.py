@@ -200,22 +200,46 @@ def jpeg_next_marker(fh):
     return byte
 
 
+SOI = 0xd8  # Start of image
+APP1 = 0xe1  # Exif
+APP13 = 0xed  # Photoshop3 IPTC
+COM = 0xfe  # Comment
+SOS = 0xda  # Start of scan
+EOI = 0xd9  # End of image
+
+
 def jpeg_parts_by_marker(fh):
     """
-    Iterate over each part of a JPEG file by marker
+    Iterate over a JPEG file by marker until image data is found (SOS)
 
     Returns (marker: int, chunk: binary)
     """
-    fh.seek(0, 0)
+    __, soi = fh.read(2)  # skip FFD8 SOI
+    assert soi == SOI
+
     while True:
-        block = fh.read(8192)
-        if not block:
+        test = fh.read(1)
+        if not test:  # EOF
+            print('early exit')
             break
 
-        yield len(block.split(b'\xff'))
+        if ord(test) != 0xff:
+            print('continue', test)
+            continue
+
+        marker = ord(fh.read(1))
+
+        if marker == SOS or marker == EOI:
+            break
+
+        size_bits = fh.read(2)
+        size = unpack('!H', size_bits)[0]
+        chunk = fh.read(size)
+
+        yield '%02X' % marker, size, 'chunk'
 
 
-def jpeg_skip_variable(fh, rSave=None):
+def jpeg_skip_variable(fh, save_read=False):
     """Skips variable-length section of Jpeg block. Should always be
     called between calls to JpegNextMarker to ensure JpegNextMarker is
     at the start of data it can properly parse."""
@@ -226,7 +250,7 @@ def jpeg_skip_variable(fh, rSave=None):
         return None
 
     # Skip remaining bytes
-    if rSave is not None or debugMode > 0:
+    if save_read or debugMode:
         try:
             temp = read_exactly(fh, length)
         except EOFException:
@@ -240,7 +264,7 @@ def jpeg_skip_variable(fh, rSave=None):
             logger.error("jpeg_skip_variable: read failed while skipping var data")
             return None
 
-    return (rSave is not None and [temp] or [True])[0]
+    return (save_read is not None and [temp] or [True])[0]
 
 
 def jpeg_debug_scan(filename):  # pragma: no cover
@@ -257,14 +281,14 @@ def jpeg_debug_scan(filename):  # pragma: no cover
             # here and there.
             while True:
                 marker = jpeg_next_marker(fh)
-                if ord3(marker) == 0xda:
+                if ord3(marker) == SOS:
                     break
 
                 if ord3(marker) == 0:
                     logger.warn("Marker scan failed")
                     break
 
-                elif ord3(marker) == 0xd9:
+                elif ord3(marker) == EOI:
                     logger.debug("Marker scan hit end of image marker")
                     break
 

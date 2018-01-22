@@ -31,6 +31,8 @@ def test_jpeg_parts_by_marker():
         for x in jpeg_parts_by_marker(fh):
             print(x)
 
+        print('done')
+
 
 def test_IPTCData():
     data = IPTCData({105: 'Audiobook Narrator Really Going For Broke With Cajun Accent'})
