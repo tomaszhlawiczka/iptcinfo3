@@ -506,11 +506,10 @@ class IPTCInfo:
 
             # XXX bug in jpegCollectFileParts? it's not supposed to return old
             # meta, but it does. discarding app parts keeps it from doing this
-            jpeg_parts = self.jpegCollectFileParts(fh, discard_app_parts=True)
+            jpeg_parts = self.jpegCollectFileParts(fh, discard_app_parts=False)
 
         if jpeg_parts is None:
-            logger.error("collectfileparts failed")
-            raise Exception('collectfileparts failed')
+            raise Exception('jpegCollectFileParts failed to find parts in %s %s', self._fobj, self.error)
 
         (start, end, adobe) = jpeg_parts
         LOGDBG.debug('start: %d, end: %d, adobe: %d', *map(len, jpeg_parts))
@@ -712,7 +711,7 @@ class IPTCInfo:
                 return None
 
             alist = {'tag': tag, 'record': record, 'dataset': dataset, 'length': length}
-            logger.debug('\n'.join('%s\t: %s' % (k, v) for k, v in alist.items()))
+            logger.debug('\t'.join('%s: %s' % (k, v) for k, v in alist.items()))
             value = fh.read(length)
 
             if self.inp_charset:
@@ -790,6 +789,7 @@ class IPTCInfo:
                 self.error = "Marker scan failed"
                 logger.error(self.error)
                 return None
+
             # Check for end of image
             elif ord3(marker) == 0xd9:
                 logger.debug("JpegCollectFileParts: saw EOI (end of image) marker")
@@ -806,6 +806,7 @@ class IPTCInfo:
                 self.error = "JpegSkipVariable failed"
                 logger.error(self.error)
                 return None
+
             partdata = bytes(partdata)
 
             # Take all parts aside from APP13, which we'll replace
